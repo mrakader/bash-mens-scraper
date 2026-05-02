@@ -1,0 +1,54 @@
+name: Daily bash.com mens (Markham + Fabiani) scrape
+
+on:
+  schedule:
+    - cron: "0 10 * * *"   # 12:00 SAST nominal — same as the other 3 retailers
+  workflow_dispatch:
+
+concurrency:
+  group: bash-mens-scrape
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BASH_MENS_DB_PATH: ${{ github.workspace }}/bash_mens.db
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily scrape
+        run: python src/run_bash_mens.py
+
+      - name: Show run status
+        if: always()
+        run: |
+          if [ -f run_status.json ]; then cat run_status.json; fi
+
+      - name: Commit DB if healthy + changed
+        run: |
+          set -euo pipefail
+          git config user.email "actions@github.com"
+          git config user.name  "github-actions[bot]"
+          git add bash_mens.db
+          if git diff --staged --quiet; then
+            echo "No DB changes - skipping commit."
+          else
+            git commit -m "daily scrape $(date -u +%Y-%m-%d)"
+            git push
+          fi
