@@ -32,6 +32,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Decompress existing DB (if present)
+        run: |
+          if [ -f bash_mens.db.gz ]; then
+            gunzip -kf bash_mens.db.gz
+          fi
+
       - name: Run daily scrape
         run: python src/run_bash_mens.py
 
@@ -40,15 +46,26 @@ jobs:
         run: |
           if [ -f run_status.json ]; then cat run_status.json; fi
 
-      - name: Commit DB if healthy + changed
+      - name: Compress DB for commit
+        run: |
+          if [ -f bash_mens.db ]; then
+            gzip -fc bash_mens.db > bash_mens.db.gz
+            ls -lh bash_mens.db bash_mens.db.gz
+          fi
+
+      - name: Commit DB.gz if healthy + changed
         run: |
           set -euo pipefail
           git config user.email "actions@github.com"
           git config user.name  "github-actions[bot]"
-          git add bash_mens.db
-          if git diff --staged --quiet; then
-            echo "No DB changes - skipping commit."
+          if [ -f bash_mens.db.gz ]; then
+            git add bash_mens.db.gz
+            if git diff --staged --quiet; then
+              echo "No DB changes - skipping commit."
+            else
+              git commit -m "daily scrape $(date -u +%Y-%m-%d)"
+              git push
+            fi
           else
-            git commit -m "daily scrape $(date -u +%Y-%m-%d)"
-            git push
+            echo "No DB produced — nothing to commit."
           fi

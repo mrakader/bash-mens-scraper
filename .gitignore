@@ -9,4 +9,7 @@ recon_output/
 *.db-wal
 *.db-shm
 
+# Raw .db is derived from .db.gz on pull. Don't commit the raw file.
+bash_mens.db
+
 .env
