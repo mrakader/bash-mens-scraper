@@ -32,46 +32,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Network diagnostics
-        run: |
-          echo "==== Runner public IP ===="
-          curl -s ifconfig.me || true
-          echo
-          echo
-          echo "==== bash.com response from this runner (Chrome-impersonated curl_cffi) ===="
-          python <<'PY'
-          from curl_cffi import requests as cffi
-          import time
-
-          UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36")
-          s = cffi.Session(impersonate="chrome124")
-          H = {"User-Agent": UA,
-               "Accept": "application/json,text/plain;q=0.9,*/*;q=0.5",
-               "Accept-Language": "en-ZA,en;q=0.9"}
-
-          def probe(label, url):
-              try:
-                  r = s.get(url, headers=H, timeout=20)
-                  cf_ray = (r.headers.get("cf-ray") or "-")[:25]
-                  server = (r.headers.get("server") or "-")[:20]
-                  retry = r.headers.get("retry-after") or "-"
-                  body0 = r.text[:120].replace("\n", " ")
-                  print(f"  {label:36s}  status={r.status_code}  cf-ray={cf_ray:<25}  server={server:<20}  retry-after={retry}")
-                  print(f"    body[:120]: {body0!r}")
-              except Exception as e:
-                  print(f"  {label:36s}  ERROR: {e}")
-              time.sleep(2)
-
-          probe("homepage HTML",                "https://bash.com/")
-          probe("men/clothing/jeans",           "https://bash.com/api/catalog_system/pub/products/search/men/clothing/jeans?_from=0&_to=0")
-          probe("men/clothing/tops---t-shirts", "https://bash.com/api/catalog_system/pub/products/search/men/clothing/tops---t-shirts?_from=0&_to=0")
-          probe("women/clothing/jeans",         "https://bash.com/api/catalog_system/pub/products/search/women/clothing/jeans?_from=0&_to=0")
-          probe("women/clothing/swimwear",      "https://bash.com/api/catalog_system/pub/products/search/women/clothing/swimwear---beachwear?_from=0&_to=0")
-          probe("category tree",                "https://bash.com/api/catalog_system/pub/category/tree/3")
-          PY
-
       - name: Decompress existing DB (if present)
         run: |
           if [ -f bash_mens.db.gz ]; then
