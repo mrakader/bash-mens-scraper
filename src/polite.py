@@ -156,21 +156,15 @@ class PoliteSession:
     # --- public --------------------------------------------------------
 
     def warm_up(self, homepage_url: str) -> None:
-        """Visit a homepage to acquire cookies (and a CDN-warm session).
+        """Visit a homepage to acquire cookies (and a CDN-warm session) first.
 
-        Mimics a real browser navigation. Sends an HTML Accept header (not the
-        API JSON one) — bash.com's Cloudflare layer rejects the homepage if
-        Accept is application/json.
+        Mimics a real browser. Errors here are logged but not fatal — the
+        homepage may legitimately not be JSON.
         """
-        html_headers = {
-            "User-Agent": self.user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-ZA,en;q=0.9",
-        }
         try:
             r = self._session.get(
                 homepage_url,
-                headers=html_headers,
+                headers=self._base_headers(),
                 timeout=self.timeout,
             )
             self._log_response(r, kind="warmup")
