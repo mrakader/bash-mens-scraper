@@ -48,6 +48,9 @@ jobs:
         run: |
           if [ -f run_status.json ]; then cat run_status.json; fi
 
+      - name: Prune old snapshots (rolling 45-day window)
+        run: python prune_snapshots.py bash_mens.db 45
+
       - name: Compress DB for commit
         run: |
           if [ -f bash_mens.db ]; then
