@@ -1,0 +1,55 @@
+name: fleet-watchdog
+
+# Daily health check for the 6-scraper fleet. Lives in a PUBLIC repo so it runs
+# on free Actions minutes and can't be silenced by the same budget cap it watches
+# for. Quiet when all green; FAILS (-> GitHub emails you) when any scraper has not
+# had a successful run within MAX_AGE_HOURS.
+
+on:
+  schedule:
+    - cron: "37 19 * * *"   # 19:37 UTC daily, well after the ~15:30 UTC scrape window
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all 6 scrapers succeeded recently
+        env:
+          GH_PAT: ${{ secrets.FLEET_PAT }}   # optional: needed only while repos are private
+        run: |
+          set -uo pipefail
+          REPOS="scraper tfg-scraper bash-mens-scraper superbalist-scraper evolve-scraper fashion-fusion-scraper"
+          MAX_AGE_HOURS=36
+          now=$(date -u +%s)
+          fail=0
+          report=""
+          for r in $REPOS; do
+            hdr=(-H "Accept: application/vnd.github+json")
+            if [ -n "${GH_PAT:-}" ]; then hdr+=(-H "Authorization: Bearer $GH_PAT"); fi
+            resp=$(curl -s "${hdr[@]}" "https://api.github.com/repos/mrakader/$r/actions/runs?status=success&per_page=1")
+            created=$(echo "$resp" | jq -r '.workflow_runs[0].created_at // "none"')
+            if [ "$created" = "none" ]; then
+              report="${report}\n- :x: ${r}: no successful run visible (private repo with no FLEET_PAT, or never succeeded)"
+              fail=1
+              continue
+            fi
+            ts=$(date -u -d "$created" +%s)
+            age=$(( (now - ts) / 3600 ))
+            if [ "$age" -gt "$MAX_AGE_HOURS" ]; then
+              report="${report}\n- :x: ${r}: last SUCCESS ${age}h ago (> ${MAX_AGE_HOURS}h threshold)"
+              fail=1
+            else
+              report="${report}\n- :white_check_mark: ${r}: success ${age}h ago"
+            fi
+          done
+          echo -e "Fleet watchdog @ $(date -u):${report}"
+          echo -e "## Fleet watchdog${report}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::One or more scrapers have not succeeded within ${MAX_AGE_HOURS}h — fleet needs attention."
+            exit 1
+          fi
+          echo "All 6 scrapers green and fresh."
