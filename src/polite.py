@@ -63,6 +63,7 @@ class HumanTiming:
     burst_size_max: int = 15
     burst_pause_min: float = 5.0
     burst_pause_max: float = 30.0
+    scale: float = 1.0          # >1 = slower (the afternoon retry runs at POLITE_SLOW x)
 
     _bursts_remaining: int = 0
 
@@ -77,7 +78,7 @@ class HumanTiming:
             self._bursts_remaining = random.randint(
                 self.burst_size_min, self.burst_size_max
             )
-            return random.uniform(self.burst_pause_min, self.burst_pause_max)
+            return random.uniform(self.burst_pause_min, self.burst_pause_max) * self.scale
         self._bursts_remaining -= 1
 
         r = random.random()
@@ -87,7 +88,7 @@ class HumanTiming:
             sample = random.lognormvariate(self.med_mu, self.med_sigma)
         else:
             sample = random.lognormvariate(self.long_mu, self.long_sigma)
-        return max(self.min_floor, min(self.max_ceiling, sample))
+        return max(self.min_floor, min(self.max_ceiling, sample)) * self.scale
 
 
 # ---------------------------------------------------------------------

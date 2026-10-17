@@ -3,6 +3,7 @@ name: Daily bash.com mens (Markham + Fabiani) scrape
 on:
   schedule:
     - cron: "0 10 * * *"   # 12:00 SAST nominal — same as the other 3 retailers
+    - cron: "0 15 * * *"   # 17:00 SAST RETRY — only if 12:00 saved nothing; runs 2x slower (polite, no bypass)
   workflow_dispatch:
 
 concurrency:
@@ -15,7 +16,7 @@ permissions:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60   # the slower afternoon retry needs more time
     env:
       BASH_MENS_DB_PATH: ${{ github.workspace }}/bash_mens.db
 
@@ -40,7 +41,19 @@ jobs:
             gunzip -kf bash_mens.db.gz
           fi
 
+      - name: Skip the retry if today's data is already saved
+        if: github.event.schedule == '0 15 * * *'
+        run: |
+          if [ "$(git log -1 --format=%s)" = "daily scrape $(date -u +%Y-%m-%d)" ]; then
+            echo "Today's data already committed by the 12:00 run - retry not needed."
+            echo "SKIP=1" >> "$GITHUB_ENV"
+          else
+            echo "12:00 run saved nothing - retrying at half speed."
+            echo "POLITE_SLOW=2" >> "$GITHUB_ENV"
+          fi
+
       - name: Run daily scrape
+        if: env.SKIP != '1'
         run: python src/run_bash_mens.py
 
       - name: Show run status
@@ -49,9 +62,11 @@ jobs:
           if [ -f run_status.json ]; then cat run_status.json; fi
 
       - name: Prune old snapshots (rolling 45-day window)
+        if: env.SKIP != '1'
         run: python prune_snapshots.py bash_mens.db 45
 
       - name: Compress DB for commit
+        if: env.SKIP != '1'
         run: |
           if [ -f bash_mens.db ]; then
             gzip -fc bash_mens.db > bash_mens.db.gz
@@ -59,6 +74,7 @@ jobs:
           fi
 
       - name: Commit DB.gz if healthy + changed
+        if: env.SKIP != '1'
         run: |
           set -euo pipefail
           git config user.email "actions@github.com"

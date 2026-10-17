@@ -4,6 +4,7 @@ Important lesson from earlier projects: bash.com's Cloudflare layer requires
 a valid Chrome TLS fingerprint AND a homepage warmup to seed cookies.
 PoliteSession.warm_up() handles the warmup; curl_cffi handles the TLS.
 """
+import os
 from pathlib import Path
 
 from src import config
@@ -14,7 +15,7 @@ class BashClient:
     def __init__(self, *, log_path: Path | None = None) -> None:
         self._session = PoliteSession(
             log_path=log_path,
-            timing=HumanTiming(),
+            timing=HumanTiming(scale=float(os.environ.get("POLITE_SLOW", "1"))),
             user_agent=config.USER_AGENT,
         )
 
